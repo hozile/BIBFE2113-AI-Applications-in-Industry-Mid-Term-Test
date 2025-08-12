@@ -42,9 +42,8 @@ For each bug you find and fix, write in a file call `DEBUGGING_FINDINGS.md` that
 [What was actually wrong]
 
 **Fix Applied:**
-```python
 [Show the code changes you made]
-```
+
 
 **Verification:**
 [How you confirmed the fix worked]
