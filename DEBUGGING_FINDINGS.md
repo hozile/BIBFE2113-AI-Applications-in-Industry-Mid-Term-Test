@@ -148,10 +148,9 @@ class ConversationRouter:
 passing all the tools into the router in demo.py:
 
 ```python
-
     # Initialize tools
     tools = [ FakeNewsSearchTool(),FakeWeatherSearchTool(),FakeCalculatorTool()]
-    
+
     # Initialize router
     router = ConversationRouter(llm,tools=tools)
 ```
@@ -171,12 +170,12 @@ from langchain.tools import BaseTool
 
 class QueryRouter:
     """Routes queries to appropriate tools based on content analysis."""
-    
+
     def __init__(self, llm: ChatGoogleGenerativeAI, tools: List[BaseTool]):
         self.llm = llm
         self.tools = tools
         self.tool_map = {tool.name: tool for tool in tools}
-        
+
         # Create routing prompt
         self.routing_prompt = PromptTemplate(
             input_variables=["query", "available_tools"],
@@ -191,34 +190,34 @@ class QueryRouter:
             {available_tools}
             """
         )
-        
+
         self.routing_chain = self.routing_prompt | self.llm | StrOutputParser()
-    
+
     def route_query(self, query: str) -> str:
         """Route a query to the appropriate tool."""
         # Create tool descriptions
         tool_descriptions = []
         for tool in self.tools:
             tool_descriptions.append(f"- {tool.name}: {tool.description}")
-        
+
         available_tools = "\n".join(tool_descriptions)
-        
+
         # Get routing decision
         result = self.routing_chain.invoke({
             "query": query,
             "available_tools": available_tools
         })
-        
+
         tool_name = result.strip().lower()
         return tool_name if tool_name in self.tool_map else "general_chat"
-    
+
     def execute_tool(self, tool_name: str, query: str) -> str:
         """Execute the selected tool with the query."""
         if tool_name not in self.tool_map:
             return "I'm not sure how to help with that. Could you please rephrase your question?"
-        
+
         tool = self.tool_map[tool_name]
-        
+
         param_extraction_prompt = PromptTemplate(
             input_variables=["query", "tool_description"],
             template="""
@@ -232,13 +231,13 @@ class QueryRouter:
             Only return the extracted parameter. No extra words.
             """
         )
-        
+
         param_chain = param_extraction_prompt | self.llm | StrOutputParser()
         parameter = param_chain.invoke({
             "query": query,
             "tool_description": tool.description
         }).strip()
-        
+
         try:
             return tool._run(parameter)
         except Exception as e:
@@ -247,37 +246,37 @@ class QueryRouter:
 
 class ConversationRouter:
     """Advanced router that maintains conversation context."""
-    
+
     def __init__(self, llm: ChatGoogleGenerativeAI, tools: List[BaseTool]):
         self.llm = llm
         self.query_router = QueryRouter(llm, tools)
         self.conversation_history = []
-    
+
     def process_message(self, message: str) -> str:
         """Process a message with conversation context."""
         # Add to conversation history
         self.conversation_history.append({"role": "user", "content": message})
-        
+
         # Route the query
         tool_name = self.query_router.route_query(message)
-        
+
         if tool_name == "general_chat":
             response = self._handle_general_chat(message)
         else:
             response = self.query_router.execute_tool(tool_name, message)
-        
+
         # Add response to history
         self.conversation_history.append({"role": "assistant", "content": response})
-        
+
         return response
-    
+
     def _handle_general_chat(self, message: str) -> str:
         """Handle general conversation that doesn't require tools."""
         context = "\n".join([
             f"{msg['role']}: {msg['content']}" 
             for msg in self.conversation_history[-4:]  # Last 4 messages for context
         ])
-        
+
         general_prompt = PromptTemplate(
             input_variables=["context", "message"],
             template="""
@@ -300,9 +299,67 @@ class ConversationRouter:
             """
         )
 
-        
+
         general_chain = general_prompt | self.llm | StrOutputParser()
         return general_chain.invoke({"context": context, "message": message})
 ```
 
 **Verification:** The LLM is now answering correct answer after the changes made
+
+```cmd
+--- Demo 1 ---
+Query: What's the weather like in Tokyo?
+Response: Weather in Tokyo:
+- Condition: stormy
+- Temperature: 12°C
+- Humidity: 70%
+- Wind Speed: 6 km/h
+
+--- Demo 2 ---
+Query: Calculate 5 * 3
+Response: The result of 5 * 3 is 16
+
+--- Demo 3 ---
+Query: Find me news about machine learning
+Response: Recent news about machine learning:
+• New research reveals insights about machine learning
+• Experts discuss the future of machine learning
+• Local community responds to machine learning changes
+• Global impact of machine learning continues to grow
+• Breaking: Major developments in machine learning industry
+
+--- Demo 4 ---
+Query: Hello! How are you doing today?
+Response: Hello! As an AI, I don't experience days or have feelings, but I'm ready and functioning well. How can I assist you today?
+```
+
+## Bug #5: [The answer for the calculation is always being added in 1 ]
+
+**Error/Issue Observed:** The result of the calculation is always being added in 1
+
+**LLM Assistance Used:** Debug on why the resulf of calculation is always added in 1
+
+**Root Cause:**  The result output is written in result + 1, so the result of calculation is always incorrect
+
+**Fix Applied:** 
+
+Deleted + 1 from the result in mock_tools.py:
+
+```python
+class FakeCalculatorTool(BaseTool):
+    """A mock calculator tool for basic math operations."""
+
+    name: str = "calculator"
+    description: str = "Perform basic mathematical calculations"
+    args_schema: type = CalculatorInput
+
+    def _run(self, expression: str) -> str:
+        """Run the calculator tool."""
+        try:
+            result = eval(expression)
+            return f"The result of {expression} is {result}"
+        except Exception as e:
+            return f"Error calculating {expression}: {str(e)}"
+```
+
+**Verification:** The result of calculation is now correct.
