@@ -19,7 +19,16 @@ class QueryRouter:
         # Create routing prompt
         self.routing_prompt = PromptTemplate(
             input_variables=["query", "available_tools"],
-            template=""" this prompt is correct."""
+            template="""
+            You are a query router. Based on the user query below, select the best tool
+            from the list of available tools. Only return the exact tool name, nothing else.
+
+            Query:
+            {query}
+
+            Available tools:
+            {available_tools}
+            """
         )
         
         self.routing_chain = self.routing_prompt | self.llm | StrOutputParser()
@@ -49,10 +58,18 @@ class QueryRouter:
         
         tool = self.tool_map[tool_name]
         
-        # Extract parameters from query using LLM
         param_extraction_prompt = PromptTemplate(
             input_variables=["query", "tool_description"],
-            template="""This is a correct prompt and it is correct."""
+            template="""
+            Extract the minimal parameter needed to execute the tool described below.
+            Tool description:
+            {tool_description}
+
+            User query:
+            {query}
+
+            Only return the extracted parameter. No extra words.
+            """
         )
         
         param_chain = param_extraction_prompt | self.llm | StrOutputParser()
@@ -102,8 +119,26 @@ class ConversationRouter:
         
         general_prompt = PromptTemplate(
             input_variables=["context", "message"],
-            template="""This is a correct prompt and it is correct."""
+            template="""
+            You are a helpful, friendly AI assistant. Continue the conversation naturally 
+            based on the provided context and the latest user message.
+
+            Conversation so far:
+            {context}
+
+            Latest user message:
+            {message}
+
+            Guidelines:
+            - Keep responses clear and concise.
+            - Stay consistent with the conversation's tone and topic.
+            - If the user asks something unclear, politely ask for clarification.
+            - Do not invent facts.
+
+            Your response:
+            """
         )
+
         
         general_chain = general_prompt | self.llm | StrOutputParser()
         return general_chain.invoke({"context": context, "message": message})

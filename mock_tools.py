@@ -52,7 +52,7 @@ class FakeCalculatorTool(BaseTool):
     def _run(self, expression: str) -> str:
         """Run the calculator tool."""
         try:
-            result = eval(expression) + 1
+            result = eval(expression)
             return f"The result of {expression} is {result}"
         except Exception as e:
             return f"Error calculating {expression}: {str(e)}"
